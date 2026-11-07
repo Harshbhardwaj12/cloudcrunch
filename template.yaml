@@ -1,0 +1,198 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Transform: AWS::Serverless-2016-10-31
+Description: >
+  Serverless Image Processing System - S3 + Lambda + Pillow + API Gateway.
+  Upload an image -> S3 event -> Lambda resizes/compresses/converts -> output bucket.
+
+Parameters:
+  MaxUploadMB:
+    Type: Number
+    Default: 10
+    Description: Largest image (in MB) the browser is allowed to upload
+
+Globals:
+  Function:
+    Runtime: python3.12
+    Architectures: [x86_64]
+
+Resources:
+  # ------------------------------------------------------------------ #
+  #  Storage                                                            #
+  # ------------------------------------------------------------------ #
+  InputBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub "img-input-${AWS::AccountId}-${AWS::Region}"
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      CorsConfiguration:            # lets the browser POST directly to S3
+        CorsRules:
+          - AllowedOrigins: ["*"]
+            AllowedMethods: [POST]
+            AllowedHeaders: ["*"]
+            MaxAge: 3000
+      LifecycleConfiguration:       # keep costs at ~zero: delete originals after 1 day
+        Rules:
+          - Id: ExpireUploads
+            Status: Enabled
+            ExpirationInDays: 1
+
+  OutputBucket:                     # NOTE: no trigger here -> no infinite loop
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub "img-output-${AWS::AccountId}-${AWS::Region}"
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      CorsConfiguration:
+        CorsRules:
+          - AllowedOrigins: ["*"]
+            AllowedMethods: [GET]
+            AllowedHeaders: ["*"]
+            MaxAge: 3000
+      LifecycleConfiguration:
+        Rules:
+          - Id: ExpireProcessed
+            Status: Enabled
+            ExpirationInDays: 7
+
+  # ------------------------------------------------------------------ #
+  #  Pillow library packaged as a Lambda Layer (pre-built for Linux)    #
+  # ------------------------------------------------------------------ #
+  PillowLayer:
+    Type: AWS::Serverless::LayerVersion
+    Properties:
+      LayerName: pillow-python312
+      Description: Pillow 12 for Python 3.12 (x86_64)
+      ContentUri: layer/pillow-layer.zip
+      CompatibleRuntimes: [python3.12]
+      CompatibleArchitectures: [x86_64]
+
+  # ------------------------------------------------------------------ #
+  #  Compute                                                            #
+  # ------------------------------------------------------------------ #
+  ImageProcessingFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub "${AWS::StackName}-ImageProcessingFunction"
+      Description: Resizes, compresses and converts images uploaded to S3
+      CodeUri: processor/
+      Handler: app.lambda_handler
+      MemorySize: 1024
+      Timeout: 30
+      Layers: [!Ref PillowLayer]
+      Environment:
+        Variables:
+          OUTPUT_BUCKET: !Sub "img-output-${AWS::AccountId}-${AWS::Region}"
+      Policies:
+        - S3ReadPolicy:
+            BucketName: !Sub "img-input-${AWS::AccountId}-${AWS::Region}"
+        - S3CrudPolicy:
+            BucketName: !Sub "img-output-${AWS::AccountId}-${AWS::Region}"
+      Events:
+        ImageUploaded:              # the event-driven part!
+          Type: S3
+          Properties:
+            Bucket: !Ref InputBucket
+            Events: s3:ObjectCreated:*
+            Filter:
+              S3Key:
+                Rules:
+                  - Name: prefix
+                    Value: uploads/
+
+  ApiFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub "${AWS::StackName}-UploadApiFunction"
+      Description: Issues presigned upload URLs and reports job status
+      CodeUri: api/
+      Handler: app.lambda_handler
+      MemorySize: 256
+      Timeout: 10
+      Environment:
+        Variables:
+          INPUT_BUCKET: !Sub "img-input-${AWS::AccountId}-${AWS::Region}"
+          OUTPUT_BUCKET: !Sub "img-output-${AWS::AccountId}-${AWS::Region}"
+          MAX_UPLOAD_MB: !Ref MaxUploadMB
+      Policies:
+        - S3WritePolicy:
+            BucketName: !Sub "img-input-${AWS::AccountId}-${AWS::Region}"
+        - S3ReadPolicy:
+            BucketName: !Sub "img-output-${AWS::AccountId}-${AWS::Region}"
+      Events:
+        UploadUrl:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /upload-url
+            Method: POST
+        Status:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /status/{jobId}
+            Method: GET
+        Health:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /health
+            Method: GET
+
+  HttpApi:
+    Type: AWS::Serverless::HttpApi
+    Properties:
+      CorsConfiguration:
+        AllowOrigins: ["*"]
+        AllowMethods: [GET, POST, OPTIONS]
+        AllowHeaders: [Content-Type]
+        MaxAge: 3000
+
+  # ------------------------------------------------------------------ #
+  #  Monitoring                                                         #
+  # ------------------------------------------------------------------ #
+  ProcessorLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub "/aws/lambda/${ImageProcessingFunction}"
+      RetentionInDays: 7
+
+  ApiLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub "/aws/lambda/${ApiFunction}"
+      RetentionInDays: 7
+
+  ProcessorErrorAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub "${AWS::StackName}-processor-errors"
+      AlarmDescription: Image processor Lambda reported errors
+      Namespace: AWS/Lambda
+      MetricName: Errors
+      Dimensions:
+        - Name: FunctionName
+          Value: !Ref ImageProcessingFunction
+      Statistic: Sum
+      Period: 300
+      EvaluationPeriods: 1
+      Threshold: 1
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      TreatMissingData: notBreaching
+
+Outputs:
+  ApiUrl:
+    Description: Paste this into frontend/config.js (deploy.py does it for you)
+    Value: !Sub "https://${HttpApi}.execute-api.${AWS::Region}.amazonaws.com"
+  InputBucketName:
+    Value: !Ref InputBucket
+  OutputBucketName:
+    Value: !Ref OutputBucket
+  ProcessorFunctionName:
+    Value: !Ref ImageProcessingFunction

@@ -1,0 +1,12 @@
+{
+  "Records": [
+    {
+      "eventSource": "aws:s3",
+      "eventName": "ObjectCreated:Post",
+      "s3": {
+        "bucket": { "name": "img-input-ACCOUNTID-ap-south-1" },
+        "object": { "key": "uploads/0123456789abcdef0123456789abcdef/sample.jpg" }
+      }
+    }
+  ]
+}

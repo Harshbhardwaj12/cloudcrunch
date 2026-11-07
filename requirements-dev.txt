@@ -1,0 +1,6 @@
+# Only needed to run the local tests (Lambda already has boto3; Pillow comes from the layer)
+pillow>=10
+boto3
+moto[s3]>=5
+pytest
+flask  # only for scripts/local_server.py (free local demo, no AWS)

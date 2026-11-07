@@ -1,0 +1,126 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>CloudCrunch · Serverless Image Processing</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <span class="logo" aria-hidden="true">
+        <svg viewBox="0 0 32 32" width="30" height="30"><path class="cloud" d="M9 24a6 6 0 0 1-.7-11.96A8 8 0 0 1 23.6 11a6.5 6.5 0 0 1-.6 13z"/><path d="M12 19l3 3 6-6" fill="none" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </span>
+      <div>
+        <h1>CloudCrunch</h1>
+        <p>Serverless image processing · AWS S3 + Lambda</p>
+      </div>
+    </div>
+    <span id="apiStatus" class="api-status" title="API connection">● checking API…</span>
+  </header>
+
+  <div id="configBanner" class="banner hidden">
+    <strong>API not configured.</strong> Deploy the backend with
+    <code>python scripts/deploy.py</code>, or paste your API Gateway URL into <code>frontend/config.js</code>.
+  </div>
+
+  <main class="layout">
+    <!-- ============ LEFT: upload + options ============ -->
+    <section class="panel">
+      <h2><span class="num">01</span> Upload</h2>
+
+      <label id="dropzone" class="dropzone" for="fileInput">
+        <input id="fileInput" type="file" accept="image/jpeg,image/png,image/webp" hidden />
+        <div id="dropPrompt">
+          <svg viewBox="0 0 24 24" width="40" height="40" aria-hidden="true"><path d="M12 16V4m0 0-4.5 4.5M12 4l4.5 4.5M4 15v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3"/></svg>
+          <p><strong>Drop an image here</strong> or click to browse</p>
+          <small>JPG, PNG or WebP · up to 10 MB</small>
+        </div>
+        <img id="dropPreview" class="hidden" alt="Selected image preview" />
+      </label>
+      <div id="fileMeta" class="file-meta hidden"></div>
+
+      <h2><span class="num">02</span> Options</h2>
+
+      <div class="field">
+        <span class="label">Max dimension</span>
+        <div class="segmented" data-name="maxSize">
+          <button type="button" data-value="256">256px</button>
+          <button type="button" data-value="512">512px</button>
+          <button type="button" data-value="1024" class="active">1024px</button>
+          <button type="button" data-value="2048">2048px</button>
+        </div>
+      </div>
+
+      <div class="field">
+        <span class="label">Output format</span>
+        <div class="segmented" data-name="format">
+          <button type="button" data-value="webp" class="active">WebP</button>
+          <button type="button" data-value="jpeg">JPEG</button>
+          <button type="button" data-value="png">PNG</button>
+        </div>
+      </div>
+
+      <div class="field" id="qualityField">
+        <span class="label">Quality <output id="qualityOut">75</output></span>
+        <input id="quality" type="range" min="10" max="95" value="75" />
+      </div>
+
+      <button id="processBtn" class="primary" disabled>
+        <span>Process in the cloud</span>
+        <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M5 12h14m-6-6 6 6-6 6"/></svg>
+      </button>
+    </section>
+
+    <!-- ============ RIGHT: pipeline + result ============ -->
+    <section class="panel">
+      <h2><span class="num">03</span> Pipeline</h2>
+      <ol class="pipeline" id="pipeline">
+        <li data-step="api"><span class="dot"></span><div><b>API Gateway</b><small>Get presigned upload URL</small></div></li>
+        <li data-step="s3in"><span class="dot"></span><div><b>S3 · input bucket</b><small>Upload original image</small></div></li>
+        <li data-step="lambda"><span class="dot"></span><div><b>AWS Lambda</b><small>Triggered by S3 event · Pillow</small></div></li>
+        <li data-step="s3out"><span class="dot"></span><div><b>S3 · output bucket</b><small>Processed image stored</small></div></li>
+      </ol>
+      <div id="log" class="log" aria-live="polite"></div>
+
+      <h2><span class="num">04</span> Result</h2>
+      <div id="resultEmpty" class="empty">Your before &amp; after comparison will appear here.</div>
+
+      <div id="result" class="hidden">
+        <div class="compare" id="compare">
+          <img id="afterImg" alt="Processed image" />
+          <div class="before-wrap" id="beforeWrap"><img id="beforeImg" alt="Original image" /></div>
+          <div class="handle" id="handle"><span></span></div>
+          <span class="tag tag-l">Before</span>
+          <span class="tag tag-r">After</span>
+          <input type="range" id="compareRange" min="0" max="100" value="50" aria-label="Compare before and after" />
+        </div>
+
+        <div class="stats" id="stats"></div>
+
+        <a id="downloadBtn" class="primary" href="#" download>
+          <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M12 4v12m0 0 4.5-4.5M12 16l-4.5-4.5M4 20h16"/></svg>
+          <span>Download processed image</span>
+        </a>
+      </div>
+    </section>
+  </main>
+
+  <section class="panel history-panel">
+    <h2><span class="num">05</span> This session</h2>
+    <table class="history">
+      <thead><tr><th>File</th><th>Output</th><th>Original</th><th>Processed</th><th>Saved</th><th>Lambda time</th></tr></thead>
+      <tbody id="historyBody"><tr class="none"><td colspan="6">No jobs yet.</td></tr></tbody>
+    </table>
+  </section>
+
+  <footer>Cloud Computing Programming · Event-driven serverless architecture demo</footer>
+
+  <script src="config.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

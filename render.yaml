@@ -1,0 +1,8 @@
+services:
+  - type: web
+    name: cloudcrunch
+    runtime: python
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn --chdir scripts local_server:app --bind 0.0.0.0:$PORT --workers 2 --timeout 60
+    healthCheckPath: /health
