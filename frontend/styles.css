@@ -168,7 +168,7 @@ footer { text-align: center; color: var(--muted); font-size: 0.8rem; padding: 10
   .history-panel { margin: 0 16px 16px; max-width: none; }
 }
 
-/* ---------- CloudCrunch refresh ---------- */
+/* ---------- LambdaLens refresh ---------- */
 .logo { background: linear-gradient(135deg, rgba(76,201,240,.18), rgba(46,196,182,.12)); border-color: rgba(76,201,240,.35); }
 .logo svg path.cloud { fill: var(--accent); stroke: none; }
 h1 { background: linear-gradient(90deg, #e6edf3, var(--accent)); -webkit-background-clip: text; background-clip: text; color: transparent; }

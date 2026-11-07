@@ -1,4 +1,4 @@
-# CloudCrunch — Serverless Image Processing System (AWS Lambda + S3)
+# LambdaLens — Serverless Image Processing System (AWS Lambda + S3)
 
 Upload an image in the browser → it lands in an **S3 input bucket** → S3 fires an
 event → an **AWS Lambda** function resizes, compresses and converts it with

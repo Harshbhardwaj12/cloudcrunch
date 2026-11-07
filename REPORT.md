@@ -1,6 +1,6 @@
-# Serverless Image Processing System using AWS Lambda and Amazon S3
+# LambdaLens — Serverless Image Processing System using AWS Lambda and Amazon S3
 
-**Course:** Cloud Computing Programming — Module 4 Project  **Author:** ____________  **Date:** ____________
+**Course:** Cloud Computing Programming — Module 4 Project  **Authors:** Harsh Bhardwaj, Pratishth Raj Singh Chauhan  **Date:** ____________
 
 ## 1. Problem and objective
 Images uploaded from phones and cameras are often several megabytes, which wastes

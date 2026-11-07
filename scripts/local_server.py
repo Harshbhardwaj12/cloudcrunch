@@ -178,7 +178,7 @@ def local_files(name):
 
 
 if __name__ == "__main__":
-    print("CloudCrunch local demo server -- no AWS, no cost")
+    print("LambdaLens local demo server -- no AWS, no cost")
     port = int(os.environ.get("PORT", 5000))
     host = os.environ.get("HOST", "127.0.0.1")
     print(f"Open http://127.0.0.1:{port} in your browser")

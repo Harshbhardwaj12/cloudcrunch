@@ -1,6 +1,6 @@
 services:
   - type: web
-    name: cloudcrunch
+    name: lambdalens
     runtime: python
     plan: free
     buildCommand: pip install -r requirements.txt

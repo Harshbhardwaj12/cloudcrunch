@@ -1,4 +1,4 @@
-/* CloudCrunch frontend
+/* LambdaLens frontend
  * 1. POST /upload-url        -> presigned POST for the input S3 bucket
  * 2. POST file directly to S3 (the browser never holds AWS credentials)
  * 3. S3 event triggers the processor Lambda automatically
